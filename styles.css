@@ -1,0 +1,42 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f4f4f4;
+}
+
+.container {
+    text-align: center;
+    background: #fff;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+.beat-controls {
+    margin: 20px 0;
+}
+
+.beat-control {
+    margin-bottom: 20px;
+}
+
+#metronome-visual {
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-around;
+}
+
+.beat {
+    width: 20px;
+    height: 20px;
+    background: lightgray;
+    border-radius: 50%;
+    transition: background 0.1s;
+}
+
+.beat.active {
+    background: red;
+}
