@@ -16,7 +16,11 @@ const metronomeVisual = document.getElementById('metronome-visual');
 
 let isRunning = false;
 let currentBeat = 0;
+let nextNoteTime = 0.0;
+let scheduleAheadTime = 0.1; // seconds
 let intervalId = null;
+let audioContext = null;
+let sequence = [3, 0, 1, 2];
 
 const beats = [
     { volume: beat1Volume, fadeVolume: beat1FadeVolume, fadeDuration: beat1FadeDuration, element: null },
@@ -36,15 +40,20 @@ function createVisualBeats() {
     });
 }
 
-function playBeat(beatIndex) {
-    const audio = new Audio('click.wav');
-    audio.volume = parseFloat(beats[beatIndex].volume.value);
-    audio.play();
+function playBeat(beatIndex, time) {
+    const osc = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    osc.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    gainNode.gain.value = beats[beatIndex].volume.value;
+    osc.frequency.value = 1000; // Frequency of the click sound
+    osc.start(time);
+    osc.stop(time + 0.05);
 }
 
 function updateVisualBeat(beatIndex) {
     beats.forEach((beat, index) => {
-        if (index === beatIndex) {
+        if (index === sequence[beatIndex]) {
             beat.element.classList.add('active');
         } else {
             beat.element.classList.remove('active');
@@ -52,22 +61,40 @@ function updateVisualBeat(beatIndex) {
     });
 }
 
+function nextNote() {
+    const secondsPerBeat = 60.0 / bpmInput.value;
+    nextNoteTime += secondsPerBeat;
+
+    currentBeat = (currentBeat + 1) % 4;
+    updateVisualBeat(currentBeat);
+}
+
+function scheduler() {
+    while (nextNoteTime < audioContext.currentTime + scheduleAheadTime) {
+        playBeat(currentBeat, nextNoteTime);
+        nextNote();
+    }
+}
+
 function startMetronome() {
-    const interval = (60 / bpmInput.value) * 1000;
-    intervalId = setInterval(() => {
-        playBeat(currentBeat);
-        updateVisualBeat(currentBeat);
-        currentBeat = (currentBeat + 1) % 4;
-    }, interval);
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    nextNoteTime = audioContext.currentTime;
+    currentBeat = 0;
+
+    // Apply fade to all beats
+    beats.forEach((_, index) => applyFade(index));
+
+    intervalId = setInterval(scheduler, 25);
 }
 
 function stopMetronome() {
     clearInterval(intervalId);
+    audioContext.close();
 }
 
-function fadeVolume(audioElement, inputElement, startVolume, endVolume, duration) {
+function fadeVolume(element, startVolume, endVolume, duration) {
     const stepTime = 50; // in milliseconds
-    const steps = duration / stepTime;
+    const steps = duration * 1000 / stepTime;
     const volumeChange = (endVolume - startVolume) / steps;
     let currentVolume = startVolume;
     let step = 0;
@@ -75,13 +102,11 @@ function fadeVolume(audioElement, inputElement, startVolume, endVolume, duration
     const fadeInterval = setInterval(() => {
         if (step >= steps) {
             clearInterval(fadeInterval);
-            audioElement.volume = endVolume;
-            inputElement.value = endVolume;
+            element.value = endVolume;
             return;
         }
         currentVolume += volumeChange;
-        audioElement.volume = currentVolume;
-        inputElement.value = currentVolume;
+        element.value = currentVolume;
         step++;
     }, stepTime);
 }
@@ -90,13 +115,8 @@ function applyFade(beatIndex) {
     const beat = beats[beatIndex];
     const startVolume = parseFloat(beat.volume.value);
     const endVolume = parseFloat(beat.fadeVolume.value);
-    const duration = parseFloat(beat.fadeDuration.value) * 1000; // Convert seconds to milliseconds
-
-    // Create an audio element for the fade effect
-    const audioElement = new Audio('click.wav');
-    audioElement.volume = startVolume;
-
-    fadeVolume(audioElement, beat.volume, startVolume, endVolume, duration);
+    const duration = parseInt(beat.fadeDuration.value);
+    fadeVolume(beat.volume, startVolume, endVolume, duration);
 }
 
 startStopButton.addEventListener('click', () => {
@@ -106,10 +126,6 @@ startStopButton.addEventListener('click', () => {
     } else {
         startMetronome();
         startStopButton.textContent = 'Stop';
-        // Apply fade to all beats
-        for (let i = 0; i < beats.length; i++) {
-            applyFade(i);
-        }
     }
     isRunning = !isRunning;
 });
